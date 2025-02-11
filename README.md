@@ -112,6 +112,8 @@ aws cloudformation describe-stacks --stack-name product-api --query "Stacks[0].O
 
 ## API Endpoints
 
+**To test please copy the code from postman.json and import(paste it) in postman and start testing.**
+
 ### How `base_url` is Generated
 
 The `base_url` is dynamically generated as part of the AWS CloudFormation deployment process. During deployment, AWS CloudFormation provisions an **API Gateway** and assigns it a unique identifier. This identifier is included in the CloudFormation stack outputs and represents the base URL of the deployed API.
@@ -137,8 +139,6 @@ The response will contain an output similar to:
 ```
 
 The `Value` field contains the `base_url`, which needs to be updated in `postman.json` at the variables(contians base_url key-replace value) before importing it into Postman.
-
-**To test please copy the code from postman.json and import(paste it) in postman and start testing.**
 
 ### Authentication Flow
 
