@@ -130,13 +130,15 @@ The response will contain an output similar to:
     {
       "OutputKey": "ProductAPI",
       "Description": "API Gateway endpoint URL for Prod stage",
-      "Value": "https://nyfmkh8zy0.execute-api.us-east-1.amazonaws.com/Prod/"
+      "Value": "https://1r5smu3xn5.execute-api.us-east-1.amazonaws.com/Prod/"
     }
   ]
 }
 ```
 
-Before importing the Postman collection, update the base_url value in the postman.json file under the variables section (key: base_url). This ensures all API requests use the correct endpoint.
+The `Value` field contains the `base_url`, which needs to be updated in `postman.json` at the variables(contians base_url key-replace value) before importing it into Postman.
+
+**To test please copy the code from postman.json and import(paste it) in postman and start testing.**
 
 ### Authentication Flow
 
