@@ -1,0 +1,223 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: product-api
+Transform:
+  - AWS::Serverless-2016-10-31
+
+Resources:
+  # Lambda Execution Role
+  LambdaExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: ProductAPILambdaRole
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: CognitoAccess
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - cognito-idp:AdminCreateUser
+                  - cognito-idp:AdminConfirmSignUp
+                  - cognito-idp:InitiateAuth
+                  - cognito-idp:RespondToAuthChallenge
+                  - cognito-idp:AdminGetUser
+                Resource: !GetAtt CognitoUserPool.Arn
+        - PolicyName: CloudWatchLogs
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: "*"
+
+  # API Gateway
+  CognitoUserPool:
+    Type: AWS::Cognito::UserPool
+    Properties:
+      UserPoolName: ProductAPIUserPool
+      Policies:
+        PasswordPolicy:
+          MinimumLength: 8
+          RequireUppercase: true
+          RequireLowercase: true
+          RequireNumbers: true
+          RequireSymbols: true
+      UsernameAttributes:
+        - email
+      AutoVerifiedAttributes:
+        - email
+
+  CognitoUserPoolClient:
+    Type: AWS::Cognito::UserPoolClient
+    Properties:
+      ClientName: ProductAPIClient
+      UserPoolId: !Ref CognitoUserPool
+      ExplicitAuthFlows:
+        - ALLOW_USER_PASSWORD_AUTH
+        - ALLOW_REFRESH_TOKEN_AUTH
+        - ALLOW_USER_SRP_AUTH
+      GenerateSecret: false
+
+  CognitoUserPoolDomain:
+    Type: AWS::Cognito::UserPoolDomain
+    Properties:
+      Domain: product-api-auth # Change this to a unique name
+      UserPoolId: !Ref CognitoUserPool
+
+  # API Gateway Definition
+  ProductApiGateway:
+    Type: AWS::Serverless::Api
+    Properties:
+      Name: ProductAPI
+      StageName: Prod
+      Auth:
+        DefaultAuthorizer: CognitoAuthorizer
+        AddDefaultAuthorizerToCorsPreflight: false
+        Authorizers:
+          CognitoAuthorizer:
+            UserPoolArn: !GetAtt CognitoUserPool.Arn
+        ResourcePolicy:
+          AwsAccountWhitelist:
+            - "*"
+    GatewayResponses:
+      DEFAULT_4XX:
+        ResponseTemplates:
+          application/json: '{"message": "Invalid request"}'
+      DEFAULT_5XX:
+        ResponseTemplates:
+          application/json: '{"message": "Internal server error"}'
+    MethodSettings:
+      - ResourcePath: "/*"
+        HttpMethod: "*"
+        LoggingLevel: INFO # Enables CloudWatch logs
+        DataTraceEnabled: true
+        ThrottlingRateLimit: 10
+        ThrottlingBurstLimit: 5
+    UsagePlan:
+      CreateUsagePlan: PER_API
+      Description: "Rate Limit Plan"
+      Throttle:
+        RateLimit: 10
+        BurstLimit: 5
+      Quota:
+        Limit: 1000
+        Period: MONTH
+      ApiStages:
+        - ApiId: !Ref ProductApiGateway
+          Stage: Prod
+
+    # Lambda Function: Get Products
+  GetAllProductsFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      PackageType: Image
+      ImageUri: !Sub "${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/product-api-repository:getallproducts"
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Tracing: Active # Enables AWS X-Ray tracing
+      Events:
+        GetProducts:
+          Type: Api
+          Properties:
+            Path: /products
+            RestApiId: !Ref ProductApiGateway
+            Method: get
+
+  # Lambda Function: Get Product by ID
+  GetProductByIdFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      PackageType: Image
+      ImageUri: !Sub "${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/product-api-repository:getproductbyid"
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Tracing: Active # Enables AWS X-Ray tracing
+      Events:
+        GetProductById:
+          Type: Api
+          Properties:
+            Path: /products/{id}
+            RestApiId: !Ref ProductApiGateway
+            Method: get
+
+  # Lambda Function: Sign Up
+  SignUpFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      PackageType: Image
+      ImageUri: !Sub "${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/product-api-repository:signup"
+      Environment:
+        Variables:
+          USER_POOL_CLIENT_ID: !Ref CognitoUserPoolClient
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Tracing: Active # Enables AWS X-Ray tracing
+      Policies:
+        - AWSLambdaBasicExecutionRole
+      Events:
+        SignUp:
+          Type: Api
+          Properties:
+            Path: /signup
+            Method: post
+            RestApiId: !Ref ProductApiGateway
+            Auth:
+              Authorizer: NONE
+
+  ConfirmUserFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      PackageType: Image
+      ImageUri: !Sub "${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/product-api-repository:confirmuser"
+      Environment:
+        Variables:
+          USER_POOL_CLIENT_ID: !Ref CognitoUserPoolClient
+      Policies:
+        - AWSLambdaBasicExecutionRole
+      Events:
+        ConfirmUser:
+          Type: Api
+          Properties:
+            Path: /confirm
+            Method: post
+            RestApiId: !Ref ProductApiGateway
+            Auth:
+              Authorizer: NONE
+
+  # Lambda Function: Sign In
+  SignInFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      PackageType: Image
+      ImageUri: !Sub "${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/product-api-repository:signin"
+      Environment:
+        Variables:
+          USER_POOL_CLIENT_ID: !Ref CognitoUserPoolClient
+
+      Policies:
+        - AWSLambdaBasicExecutionRole
+      Events:
+        SignIn:
+          Type: Api
+          Properties:
+            Path: /signin
+            Method: post
+            RestApiId: !Ref ProductApiGateway
+            Auth:
+              Authorizer: NONE
+
+Outputs:
+  ProductAPI:
+    Description: "API Gateway endpoint URL for Prod stage"
+    Value: !Sub "https://${ProductApiGateway}.execute-api.${AWS::Region}.amazonaws.com/Prod/"
