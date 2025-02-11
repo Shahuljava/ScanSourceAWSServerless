@@ -136,7 +136,7 @@ The response will contain an output similar to:
 }
 ```
 
-The `Value` field contains the `base_url`, which needs to be updated in `postman.json` at the variables(contians base_url key-replace value) before importing it into Postman.
+Before importing the Postman collection, update the base_url value in the postman.json file under the variables section (key: base_url). This ensures all API requests use the correct endpoint.
 
 ### Authentication Flow
 
