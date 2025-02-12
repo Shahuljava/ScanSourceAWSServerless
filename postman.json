@@ -127,7 +127,7 @@
   "variable": [
     {
       "key": "base_url",
-      "value": " https://arvwn83e90.execute-api.us-east-1.amazonaws.com/Prod"
+      "value": "https://wjmb95309a.execute-api.us-east-1.amazonaws.com/Prod"
     },
     {
       "key": "idToken",
